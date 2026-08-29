@@ -1,0 +1,16 @@
+# Entornos y temporales de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Compilaciones y ejecutables
+build/
+dist/
+*.spec
+*.exe
+
+# Configuración de editores/IDE
+.vscode/
+.idea/
