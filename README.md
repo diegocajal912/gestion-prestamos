@@ -36,19 +36,15 @@ Aplicación de escritorio desarrollada en **Python** con interfaz gráfica **Tki
 - **Cálculo de mora en tiempo real:** Muestra los días de demora y el recargo acumulado dinámicamente mediante consultas en SQL Server.
 - **Historial de Cancelados:** Separación de préstamos activos y liquidados, congelando los recargos al momento de cobrarlos.
 - **Gestión y ajuste:** Posibilidad de corregir plazos, fechas y liquidar préstamos con confirmación en pantalla.
-=======
+
 
 ## Novedades de la Versión modifcada
-Cálculo de mora en tiempo real: Muestra los días de demora y el recargo acumulado dinámicamente mediante consultas en SQL Server.
-Historial de Cancelados: Separación de préstamos activos y liquidados, congelando los recargos al momento de cobrarlos.
-Gestión y ajuste: Posibilidad de corregir plazos, fechas y liquidar préstamos con confirmación en pantalla.
-
-
-=======
+**Cálculo de mora en tiempo real:** Muestra los días de demora y el recargo acumulado dinámicamente mediante consultas en SQL Server.
+**Historial de Cancelados:** Separación de préstamos activos y liquidados, congelando los recargos al momento de cobrarlos.
+**Gestión y ajuste:** Posibilidad de corregir plazos, fechas y liquidar préstamos con confirmación en pantalla.
 
 
 ## Configuración de Entorno y Seguridad
-
 - **Variables de Entorno:** Se desacopló la configuración sensible del código fuente. Las credenciales de base de datos se gestionan a través de un archivo `.env` local (basado en la plantilla `.env.example`).
 - **Autenticación:** Conexión a la base de datos `GestionPrestamos` configurada con el usuario dedicado `AppPrestamosUser`.
 - **Estructura de Base de Datos:** Actualizado el script `Schema.sql` con documentación y comentarios adicionales sobre la estructura.
