@@ -29,3 +29,9 @@ Aplicación de escritorio desarrollada en **Python** con interfaz gráfica **Tki
 
 4. **Ejecución:**
    python src/myapp.py
+
+## Novedades de la Versión Final
+
+- **Cálculo de mora en tiempo real:** Muestra los días de demora y el recargo acumulado dinámicamente mediante consultas en SQL Server.
+- **Historial de Cancelados:** Separación de préstamos activos y liquidados, congelando los recargos al momento de cobrarlos.
+- **Gestión y ajuste:** Posibilidad de corregir plazos, fechas y liquidar préstamos con confirmación en pantalla.
