@@ -15,11 +15,13 @@ CREATE TABLE Clientes (
 CREATE TABLE Prestamos (
     PrestamoID INT IDENTITY(1,1) PRIMARY KEY,
     ClienteID INT FOREIGN KEY REFERENCES Clientes(ClienteID),
-    MontoPrestado DECIMAL(12,2) NOT NULL,
+    MontoPrestado DECIMAL(18,2) NOT NULL,
     TasaInteres DECIMAL(5,2) NOT NULL,
-    MontoTotalDevolver DECIMAL(12,2) NOT NULL,
+    MontoTotalDevolver DECIMAL(18,2) NOT NULL,
     FechaInicio DATE NOT NULL,
     FechaVencimiento DATE NOT NULL,
-    Estado VARCHAR(20) DEFAULT 'Activo'
+    Estado VARCHAR(20) DEFAULT 'Activo',
+    DiasMora INT NULL,
+    MoraMonto DECIMAL(18,2) NULL
 );
 GO
