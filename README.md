@@ -43,3 +43,13 @@ Cálculo de mora en tiempo real: Muestra los días de demora y el recargo acumul
 Historial de Cancelados: Separación de préstamos activos y liquidados, congelando los recargos al momento de cobrarlos.
 Gestión y ajuste: Posibilidad de corregir plazos, fechas y liquidar préstamos con confirmación en pantalla.
 
+<<<<<<< HEAD
+=======
+
+
+## Configuración de Entorno y Seguridad
+
+- **Variables de Entorno:** Se desacopló la configuración sensible del código fuente. Las credenciales de base de datos se gestionan a través de un archivo `.env` local (basado en la plantilla `.env.example`).
+- **Autenticación:** Conexión a la base de datos `GestionPrestamos` configurada con el usuario dedicado `AppPrestamosUser`.
+- **Estructura de Base de Datos:** Actualizado el script `Schema.sql` con documentación y comentarios adicionales sobre la estructura.
+
