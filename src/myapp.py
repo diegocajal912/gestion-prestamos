@@ -135,7 +135,7 @@ def registrar_prestamo():
                 f"Préstamo registrado con éxito:\n\n"
                 f"• Monto Prestado: ${monto:,.2f}\n"
                 f"• Tasa Interés: {tasa}%\n"
-                f"• Total a Devolver: ${monto_total_devolver:,.2f}\n"
+                f"• Total Base: ${monto_total_devolver:,.2f}\n"
                 f"• Fecha Inicio: {fecha_inicio_str}\n"
                 f"• Fecha Vencimiento: {fecha_vencimiento_str}"
             )
@@ -154,13 +154,14 @@ def registrar_prestamo():
         finally:
             conn.close()
 
-# --- LÓGICA DE CONSULTA Y EDICIÓN DE PRÉSTAMOS ACTIVOS ---
+# --- LÓGICA DE CONSULTA Y EDICIÓN DE PRÉSTAMOS ACTIVOS (CON MORA TIEMPO REAL) ---
 def cargar_prestamos_por_estado(estado, orden="ASC"):
     conn = conectar_bd()
     prestamos = []
     if conn:
         try:
             cursor = conn.cursor()
+            # Si el estado es 'Cancelado', la mora y recargos se fuerzan a 0
             query = f"""
                 SELECT 
                     p.PrestamoID,
@@ -169,7 +170,25 @@ def cargar_prestamos_por_estado(estado, orden="ASC"):
                     p.MontoTotalDevolver,
                     CONVERT(VARCHAR(10), p.FechaInicio, 120) AS FechaInicio,
                     CONVERT(VARCHAR(10), p.FechaVencimiento, 120) AS FechaVencimiento,
-                    DATEDIFF(day, p.FechaInicio, p.FechaVencimiento) AS DiasPlazo
+                    DATEDIFF(day, CAST(p.FechaInicio AS DATE), CAST(p.FechaVencimiento AS DATE)) AS DiasPlazo,
+                    CASE 
+                        WHEN p.Estado = 'Cancelado' THEN 0
+                        WHEN DATEDIFF(day, CAST(p.FechaVencimiento AS DATE), CAST(GETDATE() AS DATE)) > 0 
+                        THEN DATEDIFF(day, CAST(p.FechaVencimiento AS DATE), CAST(GETDATE() AS DATE)) - 1
+                        ELSE 0 
+                    END AS DiasMora,
+                    CASE 
+                        WHEN p.Estado = 'Cancelado' THEN 0.0
+                        WHEN DATEDIFF(day, CAST(p.FechaVencimiento AS DATE), CAST(GETDATE() AS DATE)) > 0 
+                        THEN (DATEDIFF(day, CAST(p.FechaVencimiento AS DATE), CAST(GETDATE() AS DATE)) - 1) * 5000.0
+                        ELSE 0.0 
+                    END AS RecargoMora,
+                    (p.MontoTotalDevolver + CASE 
+                        WHEN p.Estado = 'Cancelado' THEN 0.0
+                        WHEN DATEDIFF(day, CAST(p.FechaVencimiento AS DATE), CAST(GETDATE() AS DATE)) > 0 
+                        THEN (DATEDIFF(day, CAST(p.FechaVencimiento AS DATE), CAST(GETDATE() AS DATE)) - 1) * 5000.0
+                        ELSE 0.0 
+                    END) AS TotalACobrar
                 FROM Prestamos p
                 INNER JOIN Clientes c ON p.ClienteID = c.ClienteID
                 WHERE p.Estado = ?
@@ -182,12 +201,13 @@ def cargar_prestamos_por_estado(estado, orden="ASC"):
     return prestamos
 
 def actualizar_tabla_prestamos():
-    # Limpiar y actualizar la tabla de Préstamos Activos (Ordenados del más próximo a vencer al más lejano: ASC)
+    # Limpiar y actualizar la tabla de Préstamos Activos
     for item in tree_prestamos.get_children():
         tree_prestamos.delete(item)
         
     prestamos_activos = cargar_prestamos_por_estado('Activo', orden="ASC")
     for row in prestamos_activos:
+        tag = 'en_mora' if row.DiasMora > 0 else 'normal'
         tree_prestamos.insert('', tk.END, values=(
             row.PrestamoID,
             row.Cliente,
@@ -195,8 +215,15 @@ def actualizar_tabla_prestamos():
             f"${row.MontoTotalDevolver:,.2f}",
             row.FechaInicio,
             row.FechaVencimiento,
-            row.DiasPlazo
-        ))
+            row.DiasPlazo,
+            row.DiasMora if row.DiasMora > 0 else "-",
+            f"${row.RecargoMora:,.2f}" if row.RecargoMora > 0 else "$0.00",
+            f"${row.TotalACobrar:,.2f}"
+        ), tags=(tag,))
+
+    # Configuración de color para mora
+    tree_prestamos.tag_configure('en_mora', foreground='red')
+    tree_prestamos.tag_configure('normal', foreground='black')
 
     # Limpiar y actualizar la tabla de Préstamos Cancelados (Historial)
     for item in tree_cancelados.get_children():
@@ -211,7 +238,10 @@ def actualizar_tabla_prestamos():
             f"${row.MontoTotalDevolver:,.2f}",
             row.FechaInicio,
             row.FechaVencimiento,
-            row.DiasPlazo
+            row.DiasPlazo,
+            row.DiasMora if row.DiasMora > 0 else "-",
+            f"${row.RecargoMora:,.2f}" if row.RecargoMora > 0 else "$0.00",
+            f"${row.TotalACobrar:,.2f}"
         ))
 
 def seleccionar_prestamo(event):
@@ -289,9 +319,15 @@ def liquidar_prestamo():
         messagebox.showwarning("Atención", "Seleccioná primero un préstamo de la lista para liquidar.")
         return
 
+    # Obtener el valor actual de 'Total a Cobrar' directamente del ítem seleccionado
+    selected = tree_prestamos.selection()
+    monto_cobrado = "$0.00"
+    if selected:
+        monto_cobrado = tree_prestamos.item(selected[0])['values'][9]
+
     confirmar = messagebox.askyesno(
         "Confirmar Liquidación", 
-        f"¿Confirmás que el cliente abonó y querés liquidar el Préstamo #{prestamo_id}?\n\nPasará a la solapa de 'Préstamos Cancelados'."
+        f"¿Confirmás que el cliente abonó {monto_cobrado} y querés liquidar el Préstamo #{prestamo_id}?\n\nPasará a la solapa de 'Préstamos Cancelados'."
     )
     
     if confirmar:
@@ -324,7 +360,7 @@ def limpiar_panel_edicion():
 # --- INTERFAZ GRÁFICA (TKINTER) ---
 root = tk.Tk()
 root.title("Sistema de Gestión de Préstamos")
-root.geometry("860x540")
+root.geometry("1020x560")
 
 # Control de Pestañas
 notebook = ttk.Notebook(root)
@@ -387,27 +423,33 @@ btn_guardar_prestamo.grid(row=5, column=0, columnspan=2, pady=15)
 tab_activos = ttk.Frame(notebook)
 notebook.add(tab_activos, text="  Préstamos Activos  ")
 
-frame_tabla = ttk.LabelFrame(tab_activos, text=" Listado de Préstamos Activos (Ordenados por Vencimiento más Próximo) ", padding=10)
+frame_tabla = ttk.LabelFrame(tab_activos, text=" Listado de Préstamos Activos (Con Mora Calculada al Día) ", padding=10)
 frame_tabla.pack(padx=10, pady=5, fill="both", expand=True)
 
-columns = ('id', 'cliente', 'monto', 'total', 'f_inicio', 'f_venc', 'dias')
-tree_prestamos = ttk.Treeview(frame_tabla, columns=columns, show='headings', height=7)
+columns = ('id', 'cliente', 'monto', 'total_base', 'f_inicio', 'f_venc', 'dias', 'dias_mora', 'recargo_mora', 'total_cobrar')
+tree_prestamos = ttk.Treeview(frame_tabla, columns=columns, show='headings', height=8)
 
 tree_prestamos.heading('id', text='ID')
 tree_prestamos.heading('cliente', text='Cliente')
 tree_prestamos.heading('monto', text='Monto Prestado')
-tree_prestamos.heading('total', text='Total Devolver')
+tree_prestamos.heading('total_base', text='Total Base')
 tree_prestamos.heading('f_inicio', text='F. Inicio')
 tree_prestamos.heading('f_venc', text='F. Vencimiento')
 tree_prestamos.heading('dias', text='Días')
+tree_prestamos.heading('dias_mora', text='Días Mora')
+tree_prestamos.heading('recargo_mora', text='Mora ($)')
+tree_prestamos.heading('total_cobrar', text='Total a Cobrar')
 
-tree_prestamos.column('id', width=40, anchor='center')
-tree_prestamos.column('cliente', width=160)
-tree_prestamos.column('monto', width=110, anchor='e')
-tree_prestamos.column('total', width=110, anchor='e')
-tree_prestamos.column('f_inicio', width=90, anchor='center')
-tree_prestamos.column('f_venc', width=110, anchor='center')
-tree_prestamos.column('dias', width=50, anchor='center')
+tree_prestamos.column('id', width=35, anchor='center')
+tree_prestamos.column('cliente', width=140)
+tree_prestamos.column('monto', width=95, anchor='e')
+tree_prestamos.column('total_base', width=95, anchor='e')
+tree_prestamos.column('f_inicio', width=80, anchor='center')
+tree_prestamos.column('f_venc', width=90, anchor='center')
+tree_prestamos.column('dias', width=45, anchor='center')
+tree_prestamos.column('dias_mora', width=65, anchor='center')
+tree_prestamos.column('recargo_mora', width=85, anchor='e')
+tree_prestamos.column('total_cobrar', width=105, anchor='e')
 
 tree_prestamos.pack(fill="both", expand=True)
 tree_prestamos.bind('<<TreeviewSelect>>', seleccionar_prestamo)
@@ -446,18 +488,24 @@ tree_cancelados = ttk.Treeview(frame_tabla_canc, columns=columns, show='headings
 tree_cancelados.heading('id', text='ID')
 tree_cancelados.heading('cliente', text='Cliente')
 tree_cancelados.heading('monto', text='Monto Prestado')
-tree_cancelados.heading('total', text='Total Devolver')
+tree_cancelados.heading('total_base', text='Total Base')
 tree_cancelados.heading('f_inicio', text='F. Inicio')
 tree_cancelados.heading('f_venc', text='F. Vencimiento')
 tree_cancelados.heading('dias', text='Días')
+tree_cancelados.heading('dias_mora', text='Días Mora')
+tree_cancelados.heading('recargo_mora', text='Mora ($)')
+tree_cancelados.heading('total_cobrar', text='Total a Cobrar')
 
-tree_cancelados.column('id', width=40, anchor='center')
-tree_cancelados.column('cliente', width=160)
-tree_cancelados.column('monto', width=110, anchor='e')
-tree_cancelados.column('total', width=110, anchor='e')
-tree_cancelados.column('f_inicio', width=90, anchor='center')
-tree_cancelados.column('f_venc', width=110, anchor='center')
-tree_cancelados.column('dias', width=50, anchor='center')
+tree_cancelados.column('id', width=35, anchor='center')
+tree_cancelados.column('cliente', width=140)
+tree_cancelados.column('monto', width=95, anchor='e')
+tree_cancelados.column('total_base', width=95, anchor='e')
+tree_cancelados.column('f_inicio', width=80, anchor='center')
+tree_cancelados.column('f_venc', width=90, anchor='center')
+tree_cancelados.column('dias', width=45, anchor='center')
+tree_cancelados.column('dias_mora', width=65, anchor='center')
+tree_cancelados.column('recargo_mora', width=85, anchor='e')
+tree_cancelados.column('total_cobrar', width=105, anchor='e')
 
 tree_cancelados.pack(fill="both", expand=True)
 
