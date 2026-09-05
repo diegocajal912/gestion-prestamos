@@ -3,19 +3,34 @@ from tkinter import messagebox, ttk
 from datetime import datetime, timedelta
 from decimal import Decimal
 import pyodbc
+import os
+from dotenv import load_dotenv
+
+# Cargar las variables de entorno desde el archivo .env
+load_dotenv()
 
 # --- CONEXIÓN A LA BASE DE DATOS ---
 def conectar_bd():
     try:
-        conn = pyodbc.connect(
-            'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=localhost;'
-            'DATABASE=GestionPrestamos;'
-            'Trusted_Connection=yes;'
+        # Recuperar credenciales ocultas
+        server = os.getenv("DB_SERVER")
+        database = os.getenv("DB_DATABASE")
+        user = os.getenv("DB_USER")
+        password = os.getenv("DB_PASSWORD")
+
+        # Cadena de conexión usando SQL Server Authentication
+        connection_string = (
+            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+            f"SERVER={server};"
+            f"DATABASE={database};"
+            f"UID={user};"
+            f"PWD={password};"
         )
+        
+        conn = pyodbc.connect(connection_string)
         return conn
     except Exception as e:
-        messagebox.showerror("Error de Conexión", f"No se pudo conectar a SQL Server:\n{e}")
+        print(f"Error de conexión: {e}")
         return None
 
 # --- LÓGICA DE CLIENTES ---

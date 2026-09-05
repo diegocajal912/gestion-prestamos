@@ -1,4 +1,4 @@
--- Script de creación de la Base de Datos y Estructura
+-- Script de creación de la Base de Datos y Estructura --
 CREATE DATABASE GestionPrestamos;
 GO
 
